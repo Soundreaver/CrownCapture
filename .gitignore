@@ -23,6 +23,7 @@
 # misc
 .DS_Store
 *.pem
+Chess RPG Game - Claude Code Development Prompt.pdf
 
 # debug
 npm-debug.log*
