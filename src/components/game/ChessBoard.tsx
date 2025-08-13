@@ -67,7 +67,7 @@ export default function ChessBoard() {
     gameState,
     selectPiece, 
     movePiece,
-    useAbility,
+    activateAbility,
     setGameState
   } = useGameStore();
   
@@ -89,7 +89,7 @@ export default function ChessBoard() {
           );
           
           if (availableAbility) {
-            useAbility(caster.id, availableAbility.id, position);
+            activateAbility(caster.id, availableAbility.id, position);
           }
         }
       } else {

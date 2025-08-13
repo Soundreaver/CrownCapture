@@ -245,7 +245,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     }
   },
 
-  useAbility: (pieceId: string, abilityId: string, target?: Position) => {
+  activateAbility: (pieceId: string, abilityId: string, target?: Position) => {
     const state = get();
 
     // Find the piece that's using the ability

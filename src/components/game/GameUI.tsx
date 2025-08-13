@@ -14,7 +14,7 @@ export default function GameUI() {
     resetGame,
     board,
     selectedPiece,
-    useAbility,
+    activateAbility,
   } = useGameStore();
 
   // Get the currently selected piece for displaying its stats
@@ -234,7 +234,7 @@ export default function GameUI() {
                       key={ability.id}
                       onClick={() => {
                         if (canUse.canUse && gameState === GameState.PLAYING) {
-                          useAbility(selectedPieceData.id, ability.id);
+                          activateAbility(selectedPieceData.id, ability.id);
                         }
                       }}
                       disabled={

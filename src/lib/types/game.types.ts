@@ -124,7 +124,7 @@ export interface GameStore {
   init: () => void;
   selectPiece: (position: Position) => void;
   movePiece: (from: Position, to: Position) => void;
-  useAbility: (pieceId: string, abilityId: string, target?: Position) => void;
+  activateAbility: (pieceId: string, abilityId: string, target?: Position) => void;
   endTurn: () => void;
   resetGame: () => void;
   setGameState: (gameState: GameState) => void;
