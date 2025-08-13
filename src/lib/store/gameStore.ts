@@ -188,31 +188,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
         newBoard[to.y][to.x] = null;
         move.damage = damage;
       } else {
-        // Piece survives, update HP and apply counter-attack
+        // Piece survives, update HP but no counter-attack
         targetPiece.stats.currentHp = newHp;
-
-        // Counter-attack: defending piece deals 50% damage back if it survives
-        const counterDamage = Math.floor(targetPiece.stats.attackPower * 0.5);
-        piece.stats.currentHp = Math.max(
-          0,
-          piece.stats.currentHp - counterDamage
-        );
-
         move.damage = damage;
-
-        // If attacking piece dies from counter-attack, don't complete the move
-        if (piece.stats.currentHp <= 0) {
-          piece.isAlive = false;
-          newBoard[from.y][from.x] = null;
-          set({
-            board: newBoard,
-            selectedPiece: null,
-            validMoves: [],
-            highlightedSquares: [],
-            moveHistory: [...state.moveHistory, move],
-          });
-          return;
-        }
       }
     }
 
