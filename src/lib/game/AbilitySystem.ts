@@ -16,6 +16,7 @@ import {
   StatusEffectType,
   PIECE_ABILITIES,
 } from "../types/abilities.types";
+import { playSound } from "../audio/SoundManager";
 
 export class AbilitySystem {
   /**
@@ -160,6 +161,9 @@ export class AbilitySystem {
 
     // Set cooldown
     ability.currentCooldown = ability.cooldown;
+
+    // Play ability sound effect
+    playSound('ability');
 
     // Execute each effect
     for (const effect of ability.effects) {

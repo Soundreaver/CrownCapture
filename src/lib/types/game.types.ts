@@ -121,6 +121,7 @@ export interface GameStore {
   }>;
 
   // Actions
+  init: () => void;
   selectPiece: (position: Position) => void;
   movePiece: (from: Position, to: Position) => void;
   useAbility: (pieceId: string, abilityId: string, target?: Position) => void;
@@ -134,6 +135,12 @@ export interface GameStore {
     target?: Position;
     duration?: number;
   }) => void;
+  
+  // AI support
+  ai: any; // ChessAI instance
+  isAIThinking: boolean;
+  startAIGame: (difficulty: any) => void; // AIDifficulty
+  makeAIMove: () => Promise<void>;
 }
 
 // Default piece stats as defined in the PDF

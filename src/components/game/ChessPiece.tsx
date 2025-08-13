@@ -1,8 +1,8 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { useFrame } from '@react-three/fiber';
-import { Mesh } from 'three';
+import { useFrame, useThree } from '@react-three/fiber';
+import { Mesh, Group } from 'three';
 import { Piece, PieceType, Team } from '@/lib/types/game.types';
 
 interface ChessPieceProps {
@@ -12,9 +12,12 @@ interface ChessPieceProps {
 
 export default function ChessPiece({ piece, isSelected }: ChessPieceProps) {
   const meshRef = useRef<Mesh>(null);
+  const healthBarRef = useRef<Group>(null);
+  const manaBarRef = useRef<Group>(null);
   const [hovered, setHovered] = useState(false);
+  const { camera } = useThree();
   
-  // Floating animation for pieces
+  // Floating animation for pieces and billboard effect for health/mana bars
   useFrame((state) => {
     if (meshRef.current) {
       // Subtle floating animation
@@ -24,6 +27,12 @@ export default function ChessPiece({ piece, isSelected }: ChessPieceProps) {
       if (isSelected) {
         meshRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 3) * 0.1;
       }
+    }
+    
+    // Billboard effect - make health and mana bars face the camera
+    if (healthBarRef.current && manaBarRef.current) {
+      healthBarRef.current.lookAt(camera.position);
+      manaBarRef.current.lookAt(camera.position);
     }
   });
   
@@ -247,46 +256,52 @@ export default function ChessPiece({ piece, isSelected }: ChessPieceProps) {
     >
       {getPieceGeometry()}
       
-      {/* HP/Mana indicators */}
-      {/* Health bar */}
-      <mesh position={[0, 1, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[0.4, 0.05]} />
-        <meshBasicMaterial 
-          color="#ff0000" 
-          transparent 
-          opacity={0.8}
-        />
-      </mesh>
+      {/* HP/Mana indicators with billboard effect */}
+      {/* Health bar group */}
+      <group ref={healthBarRef} position={[0, 1, 0]}>
+        {/* Health bar background */}
+        <mesh position={[0, 0, 0]}>
+          <planeGeometry args={[0.4, 0.05]} />
+          <meshBasicMaterial 
+            color="#ff0000" 
+            transparent 
+            opacity={0.8}
+          />
+        </mesh>
+        
+        {/* Current health */}
+        <mesh position={[0, 0, 0.001]}>
+          <planeGeometry args={[0.4 * (piece.stats.currentHp / piece.stats.maxHp), 0.05]} />
+          <meshBasicMaterial 
+            color="#00ff00" 
+            transparent 
+            opacity={0.9}
+          />
+        </mesh>
+      </group>
       
-      {/* Current health */}
-      <mesh position={[0, 1.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[0.4 * (piece.stats.currentHp / piece.stats.maxHp), 0.05]} />
-        <meshBasicMaterial 
-          color="#00ff00" 
-          transparent 
-          opacity={0.9}
-        />
-      </mesh>
-      
-      {/* Mana bar */}
-      <mesh position={[0, 1.1, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[0.4, 0.03]} />
-        <meshBasicMaterial 
-          color="#000080" 
-          transparent 
-          opacity={0.8}
-        />
-      </mesh>
-      
-      {/* Current mana */}
-      <mesh position={[0, 1.11, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[0.4 * (piece.stats.currentMana / piece.stats.maxMana), 0.03]} />
-        <meshBasicMaterial 
-          color="#0080ff" 
-          transparent 
-          opacity={0.9}
-        />
-      </mesh>
+      {/* Mana bar group */}
+      <group ref={manaBarRef} position={[0, 1.1, 0]}>
+        {/* Mana bar background */}
+        <mesh position={[0, 0, 0]}>
+          <planeGeometry args={[0.4, 0.03]} />
+          <meshBasicMaterial 
+            color="#000080" 
+            transparent 
+            opacity={0.8}
+          />
+        </mesh>
+        
+        {/* Current mana */}
+        <mesh position={[0, 0, 0.001]}>
+          <planeGeometry args={[0.4 * (piece.stats.currentMana / piece.stats.maxMana), 0.03]} />
+          <meshBasicMaterial 
+            color="#0080ff" 
+            transparent 
+            opacity={0.9}
+          />
+        </mesh>
+      </group>
     </group>
   );
 }

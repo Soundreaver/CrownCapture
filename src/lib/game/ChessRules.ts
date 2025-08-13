@@ -37,7 +37,10 @@ export class ChessRules {
         break;
     }
 
-    return validMoves.filter(pos => isValidPosition(pos));
+    // Filter out moves that would put own king in check
+    return validMoves.filter(pos => 
+      isValidPosition(pos) && !this.wouldMoveResultInCheck(piece, pos, board)
+    );
   }
 
   /**
@@ -46,6 +49,24 @@ export class ChessRules {
   static isMoveValid(piece: Piece, to: Position, board: (Piece | null)[][]): boolean {
     const validMoves = this.getValidMoves(piece, board);
     return validMoves.some(move => positionsEqual(move, to));
+  }
+
+  /**
+   * Check if a move would result in the player's own king being in check
+   */
+  static wouldMoveResultInCheck(piece: Piece, to: Position, board: (Piece | null)[][]): boolean {
+    // Create a copy of the board and simulate the move
+    const boardCopy = board.map(row => [...row]);
+    const originalPiece = boardCopy[to.y][to.x];
+    
+    // Simulate move
+    boardCopy[to.y][to.x] = { ...piece, position: to };
+    boardCopy[piece.position.y][piece.position.x] = null;
+    
+    const wouldBeInCheck = this.isKingInCheck(piece.team, boardCopy);
+    
+    // Restore board (not needed since we made a copy, but good practice)
+    return wouldBeInCheck;
   }
 
   /**
@@ -161,9 +182,77 @@ export class ChessRules {
       }
     }
 
-    // Castling will be implemented later
+    // Castling
+    if (!piece.hasMoved && !this.isKingInCheck(piece.team, board)) {
+      const castlingMoves = this.getCastlingMoves(piece, board);
+      moves.push(...castlingMoves);
+    }
     
     return moves;
+  }
+
+  /**
+   * Get castling moves for the king
+   */
+  private static getCastlingMoves(king: Piece, board: (Piece | null)[][]): Position[] {
+    const moves: Position[] = [];
+    const { x, y } = king.position;
+    
+    // Kingside castling
+    const kingsideRook = board[y][7];
+    if (kingsideRook && kingsideRook.type === PieceType.ROOK && 
+        kingsideRook.team === king.team && !kingsideRook.hasMoved) {
+      // Check if squares between king and rook are empty
+      if (!board[y][5] && !board[y][6]) {
+        // Check if king would pass through check
+        if (!this.wouldMoveResultInCheck(king, { x: 5, y }, board) &&
+            !this.wouldMoveResultInCheck(king, { x: 6, y }, board)) {
+          moves.push({ x: 6, y });
+        }
+      }
+    }
+    
+    // Queenside castling
+    const queensideRook = board[y][0];
+    if (queensideRook && queensideRook.type === PieceType.ROOK && 
+        queensideRook.team === king.team && !queensideRook.hasMoved) {
+      // Check if squares between king and rook are empty
+      if (!board[y][1] && !board[y][2] && !board[y][3]) {
+        // Check if king would pass through check
+        if (!this.wouldMoveResultInCheck(king, { x: 3, y }, board) &&
+            !this.wouldMoveResultInCheck(king, { x: 2, y }, board)) {
+          moves.push({ x: 2, y });
+        }
+      }
+    }
+    
+    return moves;
+  }
+
+  /**
+   * Check if a move is a castling move
+   */
+  static isCastlingMove(king: Piece, to: Position): boolean {
+    const dx = Math.abs(to.x - king.position.x);
+    return king.type === PieceType.KING && dx === 2;
+  }
+
+  /**
+   * Execute castling move (moves both king and rook)
+   */
+  static executeCastling(king: Piece, to: Position, board: (Piece | null)[][]): void {
+    const isKingside = to.x > king.position.x;
+    const rookFromX = isKingside ? 7 : 0;
+    const rookToX = isKingside ? 5 : 3;
+    
+    const rook = board[king.position.y][rookFromX];
+    if (rook) {
+      // Move rook
+      board[king.position.y][rookToX] = { ...rook, position: { x: rookToX, y: king.position.y }, hasMoved: true };
+      board[king.position.y][rookFromX] = null;
+      
+      // King will be moved by the calling function
+    }
   }
 
   /**
@@ -262,8 +351,8 @@ export class ChessRules {
     for (let y = 0; y < 8; y++) {
       for (let x = 0; x < 8; x++) {
         const piece = board[y][x];
-        if (piece && piece.team !== team) {
-          const moves = this.getValidMoves(piece, board);
+        if (piece && piece.team !== team && piece.isAlive) {
+          const moves = this.getRawValidMoves(piece, board); // Use raw moves to avoid infinite recursion
           if (moves.some(move => positionsEqual(move, kingPosition!))) {
             return true;
           }
@@ -272,6 +361,60 @@ export class ChessRules {
     }
 
     return false;
+  }
+
+  /**
+   * Get raw valid moves without checking if they put own king in check (to avoid infinite recursion)
+   */
+  private static getRawValidMoves(piece: Piece, board: (Piece | null)[][]): Position[] {
+    const validMoves: Position[] = [];
+    
+    switch (piece.type) {
+      case PieceType.PAWN:
+        validMoves.push(...this.getPawnMoves(piece, board));
+        break;
+      case PieceType.KNIGHT:
+        validMoves.push(...this.getKnightMoves(piece, board));
+        break;
+      case PieceType.BISHOP:
+        validMoves.push(...this.getBishopMoves(piece, board));
+        break;
+      case PieceType.ROOK:
+        validMoves.push(...this.getRookMoves(piece, board));
+        break;
+      case PieceType.QUEEN:
+        validMoves.push(...this.getQueenMoves(piece, board));
+        break;
+      case PieceType.KING:
+        validMoves.push(...this.getBasicKingMoves(piece, board)); // Basic moves without castling
+        break;
+    }
+
+    return validMoves.filter(pos => isValidPosition(pos));
+  }
+
+  /**
+   * Get basic king moves without castling (to avoid recursion in check detection)
+   */
+  private static getBasicKingMoves(piece: Piece, board: (Piece | null)[][]): Position[] {
+    const moves: Position[] = [];
+    const { x, y } = piece.position;
+
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        if (dx === 0 && dy === 0) continue;
+        
+        const pos = { x: x + dx, y: y + dy };
+        if (isValidPosition(pos)) {
+          const targetPiece = board[pos.y][pos.x];
+          if (!targetPiece || targetPiece.team !== piece.team) {
+            moves.push(pos);
+          }
+        }
+      }
+    }
+    
+    return moves;
   }
 
   /**
@@ -284,30 +427,39 @@ export class ChessRules {
     for (let y = 0; y < 8; y++) {
       for (let x = 0; x < 8; x++) {
         const piece = board[y][x];
-        if (piece && piece.team === team) {
+        if (piece && piece.team === team && piece.isAlive) {
           const moves = this.getValidMoves(piece, board);
           
-          for (const move of moves) {
-            // Simulate the move
-            const originalPiece = board[move.y][move.x];
-            board[move.y][move.x] = piece;
-            board[piece.position.y][piece.position.x] = null;
-            
-            const stillInCheck = this.isKingInCheck(team, board);
-            
-            // Restore the board
-            board[piece.position.y][piece.position.x] = piece;
-            board[move.y][move.x] = originalPiece;
-            
-            if (!stillInCheck) {
-              return false; // Found a move that gets out of check
-            }
+          if (moves.length > 0) {
+            return false; // Found a valid move that gets out of check
           }
         }
       }
     }
 
     return true; // No moves can get out of check - checkmate
+  }
+
+  /**
+   * Check if the game is in stalemate
+   */
+  static isStalemate(team: Team, board: (Piece | null)[][]): boolean {
+    if (this.isKingInCheck(team, board)) return false; // Not stalemate if in check
+
+    // Check if player has any valid moves
+    for (let y = 0; y < 8; y++) {
+      for (let x = 0; x < 8; x++) {
+        const piece = board[y][x];
+        if (piece && piece.team === team && piece.isAlive) {
+          const moves = this.getValidMoves(piece, board);
+          if (moves.length > 0) {
+            return false; // Found a valid move
+          }
+        }
+      }
+    }
+
+    return true; // No valid moves available - stalemate
   }
 
   /**

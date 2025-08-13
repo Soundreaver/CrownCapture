@@ -16,6 +16,8 @@ import {
 import { ChessRules } from "../game/ChessRules";
 import { PIECE_ABILITIES } from "../types/abilities.types";
 import { AbilitySystem } from "../game/AbilitySystem";
+import { ChessAI, AIDifficulty } from "../game/ChessAI";
+import { playSound, initializeAudio } from "../audio/SoundManager";
 
 // Helper function to create initial piece
 const createPiece = (
@@ -114,6 +116,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
   turnCount: 1,
   timeRemaining: undefined,
   activeEffects: [],
+  ai: null,
+  isAIThinking: false,
+
+  // Initialize audio when store is created
+  init: () => {
+    initializeAudio();
+  },
 
   // Actions
   selectPiece: (position: Position) => {
@@ -145,6 +154,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     const newBoard = state.board.map((row) => [...row]);
     const targetPiece = newBoard[to.y][to.x];
+
+    // Handle castling
+    if (ChessRules.isCastlingMove(piece, to)) {
+      ChessRules.executeCastling(piece, to, newBoard);
+      // Add castling effect
+      get().addEffect({
+        type: 'teleport',
+        position: from,
+        target: to,
+        duration: 1500
+      });
+    }
 
     // Create move record
     const move: Move = {
@@ -201,15 +222,27 @@ export const useGameStore = create<GameStore>((set, get) => ({
     newBoard[to.y][to.x] = piece;
     newBoard[from.y][from.x] = null;
 
+    // Play appropriate sound and add effects
+    if (move.capturedPiece) {
+      playSound('capture');
+      get().addEffect({
+        type: 'capture',
+        position: to,
+        duration: 1500
+      });
+    } else {
+      playSound('move');
+    }
+
     // Check for game end conditions
     let winner = null;
-    if (
-      ChessRules.isCheckmate(
-        state.currentTurn === Team.WHITE ? Team.BLACK : Team.WHITE,
-        newBoard
-      )
-    ) {
+    const opposingTeam = state.currentTurn === Team.WHITE ? Team.BLACK : Team.WHITE;
+    
+    if (ChessRules.isCheckmate(opposingTeam, newBoard)) {
       winner = state.currentTurn;
+      playSound('checkmate');
+    } else if (ChessRules.isKingInCheck(opposingTeam, newBoard)) {
+      playSound('check');
     }
 
     set({
@@ -224,6 +257,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     // End turn after move
     get().endTurn();
+    
+    // If it's now AI's turn, make AI move
+    const newState = get();
+    if (newState.ai && newState.currentTurn === newState.ai.team) {
+      setTimeout(() => {
+        get().makeAIMove();
+      }, 1000); // Small delay for better UX
+    }
   },
 
   useAbility: (pieceId: string, abilityId: string, target?: Position) => {
@@ -396,10 +437,49 @@ export const useGameStore = create<GameStore>((set, get) => ({
     setTimeout(() => {
       const currentState = get();
       set({
-        activeEffects: currentState.activeEffects.filter((e) => e !== effect),
-      });
-    }, effect.duration || 2000);
-  },
+      activeEffects: currentState.activeEffects.filter((e) => e !== effect),
+    });
+  }, effect.duration || 2000);
+},
+
+startAIGame: (difficulty: AIDifficulty) => {
+  const ai = new ChessAI(difficulty, Team.BLACK);
+  set({
+    board: createInitialBoard(),
+    currentTurn: Team.WHITE,
+    selectedPiece: null,
+    validMoves: [],
+    highlightedSquares: [],
+    gameState: GameState.PLAYING,
+    winner: null,
+    moveHistory: [],
+    turnCount: 1,
+    activeEffects: [],
+    ai,
+    isAIThinking: false,
+  });
+},
+
+makeAIMove: async () => {
+  const state = get();
+  if (!state.ai || state.currentTurn !== state.ai.team || state.isAIThinking) {
+    return;
+  }
+
+  set({ isAIThinking: true });
+
+  try {
+    const aiMove = state.ai.getBestMove(state.board);
+    if (aiMove) {
+      // Execute the AI move
+      get().movePiece(aiMove.from, aiMove.to);
+    }
+  } catch (error) {
+    console.error('AI move error:', error);
+  } finally {
+    set({ isAIThinking: false });
+  }
+},
 }));
 
 // Helper hooks for accessing specific parts of the store
